@@ -6,7 +6,7 @@ type Views = Database['public']['Views']
 
 export class DatabaseService {
   // Plans
-  static async getPlans() {
+  static async getPlans(): Promise<Tables['plans']['Row'][]> {
     const { data, error } = await supabaseClient
       .from('plans')
       .select('*')
@@ -14,7 +14,7 @@ export class DatabaseService {
       .order('price', { ascending: true })
 
     if (error) throw error
-    return data
+    return data || []
   }
 
   static async getPlanById(id: string) {
@@ -61,7 +61,7 @@ export class DatabaseService {
   }
 
   // Subscriptions
-  static async getUserSubscriptions(userId: string) {
+  static async getUserSubscriptions(userId: string): Promise<any[]> {
     const { data, error } = await supabaseClient
       .from('subscriptions')
       .select(`
@@ -77,7 +77,7 @@ export class DatabaseService {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data
+    return data || []
   }
 
   static async getAllSubscriptions() {
@@ -138,7 +138,7 @@ export class DatabaseService {
   }
 
   // Billing Records
-  static async getUserBillingHistory(userId: string) {
+  static async getUserBillingHistory(userId: string): Promise<any[]> {
     const { data, error } = await supabaseClient
       .from('billing_records')
       .select(`
@@ -153,7 +153,7 @@ export class DatabaseService {
       .order('billing_date', { ascending: false })
 
     if (error) throw error
-    return data
+    return data || []
   }
 
   static async createBillingRecord(billing: Tables['billing_records']['Insert']) {
@@ -248,7 +248,7 @@ export class DatabaseService {
   }
 
   // Recommendations
-  static async getUserRecommendations(userId: string) {
+  static async getUserRecommendations(userId: string): Promise<Tables['recommendations']['Row'][]> {
     const { data, error } = await supabaseClient
       .from('recommendations')
       .select('*')
@@ -258,7 +258,7 @@ export class DatabaseService {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data
+    return data || []
   }
 
   static async createRecommendation(recommendation: Tables['recommendations']['Insert']) {

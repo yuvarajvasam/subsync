@@ -1,7 +1,11 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Zap, Target, Star } from "lucide-react";
+import { TrendingUp, Zap, Target, Star, Loader2 } from "lucide-react";
+import { DatabaseService } from "@/lib/database";
+import { AuthService } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 interface Recommendation {
   id: string;
@@ -16,66 +20,69 @@ interface Recommendation {
   category: "usage" | "cost" | "performance" | "technology";
 }
 
-const mockRecommendations: Recommendation[] = [
-  {
-    id: "1",
-    title: "Upgrade to Fibernet Premium",
-    description: "You're consistently using 85% of your data quota. Upgrade to avoid throttling and get better speeds.",
-    reason: "You've used 320GB out of 500GB this month (64% usage)",
-    planName: "Fibernet Premium",
-    currentPlan: "Fibernet Basic",
-    priority: "high",
-    icon: TrendingUp,
-    category: "usage",
-  },
-  {
-    id: "2",
-    title: "Switch to Yearly Billing",
-    description: "Save 20% by switching to annual billing for your Fibernet Premium subscription.",
-    reason: "Based on your consistent usage patterns, annual billing would save you money",
-    planName: "Fibernet Premium (Yearly)",
-    currentPlan: "Fibernet Premium (Monthly)",
-    savings: "Save $120/year",
-    priority: "medium",
-    icon: Target,
-    category: "cost",
-  },
-  {
-    id: "3",
-    title: "Consider Fibernet Enterprise",
-    description: "Your high data usage suggests you need unlimited data and faster speeds for optimal performance.",
-    reason: "You're averaging 1.2TB monthly usage, exceeding most plan limits",
-    planName: "Fibernet Enterprise",
-    currentPlan: "Fibernet Premium",
-    priority: "medium",
-    icon: Zap,
-    category: "performance",
-  },
-  {
-    id: "4",
-    title: "Technology Upgrade Available",
-    description: "Upgrade from Copper to Fibernet for significantly better speeds and reliability.",
-    reason: "Fibernet offers 10x faster speeds than your current Copper connection",
-    planName: "Fibernet Basic",
-    currentPlan: "Copper Plus",
-    priority: "high",
-    icon: Zap,
-    category: "technology",
-  },
-  {
-    id: "5",
-    title: "Optimize Your Usage Pattern",
-    description: "Consider scheduling large downloads during off-peak hours to better utilize your quota.",
-    reason: "Peak usage detected during business hours (9 AM - 5 PM)",
-    planName: "Current Plan",
-    currentPlan: "Fibernet Premium",
-    priority: "low",
-    icon: Target,
-    category: "usage",
-  },
-];
+// Mock recommendations removed - now using real data from Supabase
 
 export const Recommendations = () => {
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        setLoading(true);
+        const user = await AuthService.getCurrentUser();
+        if (!user) {
+          toast({
+            title: "Error",
+            description: "User not authenticated",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const data = await DatabaseService.getUserRecommendations(user.id);
+        setRecommendations(data.map(rec => ({
+          id: rec.id,
+          title: rec.title,
+          description: rec.description,
+          reason: rec.reason,
+          planName: rec.plan_name,
+          currentPlan: rec.current_plan || undefined,
+          savings: rec.savings || undefined,
+          priority: rec.priority,
+          icon: getIconForCategory(rec.category),
+          category: rec.category
+        })));
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "Failed to load recommendations: " + error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecommendations();
+  }, [toast]);
+
+  const getIconForCategory = (category: string) => {
+    switch (category) {
+      case "usage":
+        return TrendingUp;
+      case "cost":
+        return Target;
+      case "performance":
+        return Zap;
+      case "technology":
+        return Star;
+      default:
+        return Target;
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high":
@@ -109,6 +116,21 @@ export const Recommendations = () => {
     // Here you would handle the recommendation action (e.g., upgrade, switch billing)
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Recommendations</h1>
+          <p className="text-muted-foreground mt-2">Personalized suggestions to optimize your subscription</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <span className="ml-2 text-muted-foreground">Loading recommendations...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -132,8 +154,19 @@ export const Recommendations = () => {
       </Card>
 
       {/* Recommendations Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {mockRecommendations.map((recommendation) => {
+      {recommendations.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Recommendations Yet</h3>
+            <p className="text-muted-foreground">
+              We're analyzing your usage patterns to provide personalized recommendations.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {recommendations.map((recommendation) => {
           const Icon = recommendation.icon;
           return (
             <Card 
@@ -199,7 +232,8 @@ export const Recommendations = () => {
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Usage Insights */}
       <Card>

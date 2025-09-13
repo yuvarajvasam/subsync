@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubscriptionModal } from "./SubscriptionModal";
+import { DatabaseService } from "@/lib/database";
+import { AuthService } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface Subscription {
   id: string;
@@ -17,73 +21,97 @@ interface Subscription {
   usage: number; // in GB
 }
 
-const mockSubscriptions: Subscription[] = [
-  {
-    id: "1",
-    planName: "Fibernet Premium",
-    status: "active",
-    startDate: "2024-01-15",
-    endDate: "2024-12-15",
-    price: 49.99,
-    dataQuota: "500GB",
-    speed: "Up to 500 Mbps",
-    technology: "fibernet",
-    usage: 320,
-  },
-  {
-    id: "2",
-    planName: "Copper Standard",
-    status: "paused",
-    startDate: "2023-06-01",
-    endDate: "2024-06-01",
-    price: 19.99,
-    dataQuota: "50GB",
-    speed: "Up to 50 Mbps",
-    technology: "copper",
-    usage: 45,
-  },
-  {
-    id: "3",
-    planName: "Fibernet Enterprise",
-    status: "active",
-    startDate: "2024-03-01",
-    endDate: "2025-03-01",
-    price: 99.99,
-    dataQuota: "Unlimited",
-    speed: "Up to 1 Gbps",
-    technology: "fibernet",
-    usage: 1200,
-  },
-];
+// Mock subscriptions removed - now using real data from Supabase
 
 export const MySubscriptions = () => {
-  const [subscriptions, setSubscriptions] = useState(mockSubscriptions);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState<{type: string; subscription: Subscription} | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        setLoading(true);
+        const user = await AuthService.getCurrentUser();
+        if (!user) {
+          toast({
+            title: "Error",
+            description: "User not authenticated",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const data = await DatabaseService.getUserSubscriptions(user.id);
+        setSubscriptions(data.map(sub => ({
+          id: sub.id,
+          planName: sub.plans?.name || 'Unknown Plan',
+          status: sub.status,
+          startDate: sub.start_date,
+          endDate: sub.end_date,
+          price: sub.price,
+          dataQuota: sub.plans?.data_quota || 'Unknown',
+          speed: sub.plans?.speed || 'Unknown',
+          technology: sub.plans?.technology || 'fibernet',
+          usage: sub.usage_gb
+        })));
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "Failed to load subscriptions: " + error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscriptions();
+  }, [toast]);
 
   const handleAction = (type: string, subscription: Subscription) => {
     setModalAction({ type, subscription });
     setModalOpen(true);
   };
 
-  const confirmAction = () => {
+  const confirmAction = async () => {
     if (!modalAction) return;
 
     const { type, subscription } = modalAction;
     
-    setSubscriptions(prev => prev.map(sub => {
-      if (sub.id === subscription.id) {
-        switch (type) {
-          case "cancel":
-            return { ...sub, status: "terminated" as const };
-          case "renew":
-            return { ...sub, status: "active" as const };
-          default:
-            return sub;
-        }
+    try {
+      if (type === "cancel") {
+        await DatabaseService.cancelSubscription(subscription.id);
+        setSubscriptions(prev => prev.map(sub => 
+          sub.id === subscription.id 
+            ? { ...sub, status: "terminated" as const }
+            : sub
+        ));
+        toast({
+          title: "Success",
+          description: "Subscription cancelled successfully",
+        });
+      } else if (type === "renew") {
+        await DatabaseService.updateSubscription(subscription.id, { status: "active" });
+        setSubscriptions(prev => prev.map(sub => 
+          sub.id === subscription.id 
+            ? { ...sub, status: "active" as const }
+            : sub
+        ));
+        toast({
+          title: "Success",
+          description: "Subscription renewed successfully",
+        });
       }
-      return sub;
-    }));
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to update subscription: " + error.message,
+        variant: "destructive",
+      });
+    }
 
     setModalOpen(false);
     setModalAction(null);
@@ -101,6 +129,21 @@ export const MySubscriptions = () => {
         return "bg-gray-100 text-gray-800 hover:bg-gray-200";
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">My Subscriptions</h1>
+          <p className="text-muted-foreground mt-2">Manage your active subscriptions and billing</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <span className="ml-2 text-muted-foreground">Loading subscriptions...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

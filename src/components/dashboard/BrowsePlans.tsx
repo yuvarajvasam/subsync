@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { SubscriptionModal } from "./SubscriptionModal";
+import { DatabaseService } from "@/lib/database";
+import { useToast } from "@/hooks/use-toast";
 
 interface Plan {
   id: string;
@@ -17,85 +19,69 @@ interface Plan {
   technology: "fibernet" | "copper";
 }
 
-const mockPlans: Plan[] = [
-  {
-    id: "1",
-    name: "Fibernet Basic",
-    price: 29.99,
-    type: "monthly",
-    features: ["100GB Data Quota", "Up to 100 Mbps", "24/7 Support", "Basic Analytics"],
-    dataQuota: "100GB",
-    speed: "Up to 100 Mbps",
-    technology: "fibernet",
-  },
-  {
-    id: "2",
-    name: "Fibernet Premium",
-    price: 49.99,
-    type: "monthly",
-    features: ["500GB Data Quota", "Up to 500 Mbps", "Priority Support", "Advanced Analytics", "Unlimited Streaming"],
-    popular: true,
-    dataQuota: "500GB",
-    speed: "Up to 500 Mbps",
-    technology: "fibernet",
-  },
-  {
-    id: "3",
-    name: "Fibernet Enterprise",
-    price: 99.99,
-    type: "monthly",
-    features: ["Unlimited Data", "Up to 1 Gbps", "24/7 Phone Support", "Team Collaboration", "API Access", "SLA Guarantee"],
-    dataQuota: "Unlimited",
-    speed: "Up to 1 Gbps",
-    technology: "fibernet",
-  },
-  {
-    id: "4",
-    name: "Copper Standard",
-    price: 19.99,
-    type: "monthly",
-    features: ["50GB Data Quota", "Up to 50 Mbps", "Email Support", "Basic Features"],
-    dataQuota: "50GB",
-    speed: "Up to 50 Mbps",
-    technology: "copper",
-  },
-  {
-    id: "5",
-    name: "Copper Plus",
-    price: 34.99,
-    type: "monthly",
-    features: ["200GB Data Quota", "Up to 100 Mbps", "Priority Support", "Enhanced Features"],
-    dataQuota: "200GB",
-    speed: "Up to 100 Mbps",
-    technology: "copper",
-  },
-  {
-    id: "6",
-    name: "Fibernet Premium Yearly",
-    price: 499.99,
-    type: "yearly",
-    features: ["500GB Data Quota", "Up to 500 Mbps", "2 Months Free", "Priority Support", "Advanced Analytics"],
-    dataQuota: "500GB",
-    speed: "Up to 500 Mbps",
-    technology: "fibernet",
-  },
-];
+// Mock plans removed - now using real data from Supabase
 
 export const BrowsePlans = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setLoading(true);
+        const data = await DatabaseService.getPlans();
+        setPlans(data.map(plan => ({
+          id: plan.id,
+          name: plan.name,
+          price: plan.price,
+          type: plan.type,
+          features: Array.isArray(plan.features) ? plan.features : [],
+          popular: plan.is_popular,
+          dataQuota: plan.data_quota,
+          speed: plan.speed,
+          technology: plan.technology,
+          description: plan.description || undefined,
+          status: plan.status
+        })));
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "Failed to load plans: " + error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlans();
+  }, [toast]);
 
   const handleSubscribe = (plan: Plan) => {
     setSelectedPlan(plan);
     setModalOpen(true);
   };
 
-  const confirmSubscription = () => {
+  const confirmSubscription = async () => {
     if (selectedPlan) {
-      // Here you would handle the subscription logic
-      console.log("Subscribing to:", selectedPlan.name);
-      setModalOpen(false);
-      setSelectedPlan(null);
+      try {
+        // Create subscription logic here
+        toast({
+          title: "Success",
+          description: `Subscribed to ${selectedPlan.name}`,
+        });
+        setModalOpen(false);
+        setSelectedPlan(null);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "Failed to subscribe: " + error.message,
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -121,6 +107,21 @@ export const BrowsePlans = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Browse Plans</h1>
+          <p className="text-muted-foreground mt-2">Choose the perfect plan for your needs</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <span className="ml-2 text-muted-foreground">Loading plans...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -129,7 +130,7 @@ export const BrowsePlans = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {mockPlans.map((plan) => (
+        {plans.map((plan) => (
           <Card 
             key={plan.id} 
             className={`relative ${plan.popular ? 'ring-2 ring-accent' : ''}`}

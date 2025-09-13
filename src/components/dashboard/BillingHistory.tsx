@@ -1,7 +1,11 @@
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Loader2 } from "lucide-react";
+import { DatabaseService } from "@/lib/database";
+import { AuthService } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 interface BillingRecord {
   id: string;
@@ -12,50 +16,50 @@ interface BillingRecord {
   invoiceId: string;
 }
 
-const mockBillingHistory: BillingRecord[] = [
-  {
-    id: "1",
-    amount: 29.99,
-    date: "2024-01-15",
-    status: "paid",
-    planName: "Premium Plan",
-    invoiceId: "INV-2024-001",
-  },
-  {
-    id: "2",
-    amount: 9.99,
-    date: "2024-01-01",
-    status: "paid",
-    planName: "Basic Plan",
-    invoiceId: "INV-2024-002",
-  },
-  {
-    id: "3",
-    amount: 99.99,
-    date: "2024-02-01",
-    status: "pending",
-    planName: "Enterprise Plan",
-    invoiceId: "INV-2024-003",
-  },
-  {
-    id: "4",
-    amount: 29.99,
-    date: "2023-12-15",
-    status: "paid",
-    planName: "Premium Plan",
-    invoiceId: "INV-2023-045",
-  },
-  {
-    id: "5",
-    amount: 9.99,
-    date: "2023-11-01",
-    status: "failed",
-    planName: "Basic Plan",
-    invoiceId: "INV-2023-032",
-  },
-];
+// Mock billing history removed - now using real data from Supabase
 
 export const BillingHistory = () => {
+  const [billingHistory, setBillingHistory] = useState<BillingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchBillingHistory = async () => {
+      try {
+        setLoading(true);
+        const user = await AuthService.getCurrentUser();
+        if (!user) {
+          toast({
+            title: "Error",
+            description: "User not authenticated",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const data = await DatabaseService.getUserBillingHistory(user.id);
+        setBillingHistory(data.map(billing => ({
+          id: billing.id,
+          amount: billing.amount,
+          date: billing.billing_date,
+          status: billing.status,
+          planName: billing.subscriptions?.plans?.name || 'Unknown Plan',
+          invoiceId: billing.invoice_id
+        })));
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: "Failed to load billing history: " + error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBillingHistory();
+  }, [toast]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "paid":
@@ -84,6 +88,21 @@ export const BillingHistory = () => {
     // Mock view functionality
     console.log("Viewing invoice:", record.invoiceId);
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Billing History</h1>
+          <p className="text-muted-foreground mt-2">View your payment history and invoices</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <span className="ml-2 text-muted-foreground">Loading billing history...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
