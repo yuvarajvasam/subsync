@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { AuthService } from "@/lib/auth";
 
 interface AdminSidebarProps {
   activeSection: string;
@@ -42,11 +43,15 @@ export const AdminSidebar = ({ activeSection, onSectionChange }: AdminSidebarPro
     },
   ];
 
-  const handleLogout = () => {
-    // Clear authentication data and redirect to auth page
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userEmail");
-    window.location.href = "/auth";
+  const handleLogout = async () => {
+    try {
+      await AuthService.signOut();
+      window.location.href = "/auth";
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // Fallback to redirect even if logout fails
+      window.location.href = "/auth";
+    }
   };
 
   return (

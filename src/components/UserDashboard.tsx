@@ -7,6 +7,7 @@ import { BrowsePlans } from "./dashboard/BrowsePlans";
 import { BillingHistory } from "./dashboard/BillingHistory";
 import { Recommendations } from "./dashboard/Recommendations";
 import { NotificationCenter } from "./NotificationCenter";
+import { AuthService } from "@/lib/auth";
 
 const UserDashboard = () => {
   const [activeSection, setActiveSection] = useState("subscriptions");
@@ -20,11 +21,15 @@ const UserDashboard = () => {
     { id: "notifications", label: "Notifications", icon: Bell },
   ];
 
-  const handleLogout = () => {
-    // Clear authentication data and redirect to auth page
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userEmail");
-    window.location.href = "/auth";
+  const handleLogout = async () => {
+    try {
+      await AuthService.signOut();
+      window.location.href = "/auth";
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // Fallback to redirect even if logout fails
+      window.location.href = "/auth";
+    }
   };
 
   const renderContent = () => {

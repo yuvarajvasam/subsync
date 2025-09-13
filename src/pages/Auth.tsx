@@ -6,23 +6,83 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Shield, Wifi } from "lucide-react";
+import { AuthService } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [userCredentials, setUserCredentials] = useState({ email: "", password: "" });
   const [adminCredentials, setAdminCredentials] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleUserLogin = () => {
-    // Mock user login - redirect to user dashboard
-    localStorage.setItem("userRole", "user");
-    localStorage.setItem("userEmail", userCredentials.email || "user@example.com");
-    window.location.href = "/user";
+  const handleUserLogin = async () => {
+    if (!userCredentials.email || !userCredentials.password) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { user } = await AuthService.signIn(userCredentials.email, userCredentials.password);
+      
+      if (user) {
+        const authUser = await AuthService.getCurrentUser();
+        if (authUser?.role === 'admin') {
+          window.location.href = "/admin";
+        } else {
+          window.location.href = "/user";
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAdminLogin = () => {
-    // Mock admin login - redirect to admin dashboard
-    localStorage.setItem("userRole", "admin");
-    localStorage.setItem("userEmail", adminCredentials.email || "admin@lumen.com");
-    window.location.href = "/admin";
+  const handleAdminLogin = async () => {
+    if (!adminCredentials.email || !adminCredentials.password) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { user } = await AuthService.signIn(adminCredentials.email, adminCredentials.password);
+      
+      if (user) {
+        const authUser = await AuthService.getCurrentUser();
+        if (authUser?.role === 'admin') {
+          window.location.href = "/admin";
+        } else {
+          toast({
+            title: "Access Denied",
+            description: "This account does not have admin privileges",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const mockUsers = [
@@ -88,10 +148,11 @@ const Auth = () => {
                   </div>
                   <Button 
                     onClick={handleUserLogin}
+                    disabled={loading}
                     className="w-full bg-accent hover:bg-accent-dark text-accent-foreground shadow-orange transition-all duration-300"
                     aria-label="Sign in as user"
                   >
-                    Sign In as User
+                    {loading ? "Signing In..." : "Sign In as User"}
                   </Button>
                 </div>
               </TabsContent>
@@ -120,10 +181,11 @@ const Auth = () => {
                   </div>
                   <Button 
                     onClick={handleAdminLogin}
+                    disabled={loading}
                     className="w-full bg-accent hover:bg-accent-dark text-accent-foreground shadow-orange transition-all duration-300"
                     aria-label="Sign in as admin"
                   >
-                    Sign In as Admin
+                    {loading ? "Signing In..." : "Sign In as Admin"}
                   </Button>
                 </div>
               </TabsContent>
